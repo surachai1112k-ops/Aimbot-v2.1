@@ -1,0 +1,728 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- States
+local systemEnabled = false
+local aimPercent = 15
+local currentUISize = "Medium"
+local lockedTargetPlayer = nil
+
+-- Kill Aura States
+local killAuraEnabled = false
+local killAuraRange = 20
+local lastAttackTime = 0
+local attackCooldown = 0.25
+
+-- ESP State
+local espEnabled = true
+
+-- Movement & Infinity Jump States
+local speedEnabled = false
+local walkSpeedValue = 50
+local infJumpEnabled = false
+
+-- Hitbox Expander States
+local hitboxEnabled = false
+local hitboxSize = 5
+
+-- UI Setup (Yufew Theme - Rectangle & Smooth UI)
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+local oldGui = playerGui:FindFirstChild("YufewUi")
+if oldGui then oldGui:Destroy() end
+
+local gui = Instance.new("ScreenGui", playerGui)
+gui.Name = "YufewUi"
+gui.ResetOnSpawn = false
+
+-- --- 🔑 YUFEW KEY SYSTEM GUI ---
+local keyGui = Instance.new("Frame", gui)
+keyGui.Size = UDim2.new(0, 300, 0, 160)
+keyGui.Position = UDim2.new(0.5, -150, 0.5, -80)
+keyGui.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+keyGui.ClipsDescendants = true
+Instance.new("UICorner", keyGui).CornerRadius = UDim.new(0, 10)
+
+local keyStroke = Instance.new("UIStroke", keyGui)
+keyStroke.Color = Color3.fromRGB(255, 215, 0)
+keyStroke.Thickness = 2
+
+local keyTitle = Instance.new("TextLabel", keyGui)
+keyTitle.Size = UDim2.new(1, 0, 0, 35)
+keyTitle.Position = UDim2.new(0, 0, 0, 5)
+keyTitle.BackgroundTransparency = 1
+keyTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+keyTitle.TextSize = 13
+keyTitle.Font = Enum.Font.GothamBold
+keyTitle.Text = "🔑 — YUFEW KEY SYSTEM —"
+
+local keyBox = Instance.new("TextBox", keyGui)
+keyBox.Size = UDim2.new(1, -30, 0, 38)
+keyBox.Position = UDim2.new(0, 15, 0, 45)
+keyBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+keyBox.PlaceholderText = "Enter Key Here..."
+keyBox.Text = ""
+keyBox.Font = Enum.Font.Gotham
+keyBox.TextSize = 12
+Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0, 6)
+
+local submitBtn = Instance.new("TextButton", keyGui)
+submitBtn.Size = UDim2.new(1, -30, 0, 36)
+submitBtn.Position = UDim2.new(0, 15, 0, 95)
+submitBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 200)
+submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitBtn.Text = "SUBMIT KEY"
+submitBtn.Font = Enum.Font.GothamBold
+submitBtn.TextSize = 12
+Instance.new("UICorner", submitBtn).CornerRadius = UDim.new(0, 6)
+
+-- --- MAIN PANEL SETUP ---
+local mainBtn = Instance.new("TextButton", gui)
+mainBtn.Size = UDim2.new(0, 110, 0, 38)
+mainBtn.Position = UDim2.new(1, -125, 0, 20)
+mainBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+mainBtn.Text = "⚡ Yufew Menu"
+mainBtn.Font = Enum.Font.GothamBold
+mainBtn.TextSize = 12
+mainBtn.Visible = false
+Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(0, 8)
+
+local btnStroke = Instance.new("UIStroke", mainBtn)
+btnStroke.Color = Color3.fromRGB(255, 215, 0)
+btnStroke.Thickness = 2
+
+local panel = Instance.new("Frame", gui)
+panel.Size = UDim2.new(0, 340, 0, 220)
+panel.Position = UDim2.new(1, -355, 0, 68)
+panel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+panel.Visible = false
+panel.ClipsDescendants = true
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 10)
+
+local panelStroke = Instance.new("UIStroke", panel)
+panelStroke.Color = Color3.fromRGB(255, 215, 0)
+panelStroke.Thickness = 1.5
+
+-- --- KEY SYSTEM LOGIC ---
+submitBtn.MouseButton1Click:Connect(function()
+	if keyBox.Text == "12345678" then
+		keyGui:Destroy()
+		mainBtn.Visible = true
+	else
+		submitBtn.Text = "INVALID KEY!"
+		submitBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+		task.wait(1)
+		submitBtn.Text = "SUBMIT KEY"
+		submitBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 200)
+	end
+end)
+
+-- Top Title Bar
+local titleBar = Instance.new("TextLabel", panel)
+titleBar.Size = UDim2.new(1, -60, 0, 28)
+titleBar.Position = UDim2.new(0, 10, 0, 2)
+titleBar.BackgroundTransparency = 1
+titleBar.TextColor3 = Color3.fromRGB(255, 215, 0)
+titleBar.TextSize = 12
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextXAlignment = Enum.TextXAlignment.Left
+titleBar.Text = "💻 — YUFEW PANEL —"
+
+-- Close Button (X)
+local closeBtn = Instance.new("TextButton", panel)
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -28, 0, 4)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 11
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+closeBtn.MouseButton1Click:Connect(function()
+	panel.Visible = false
+end)
+
+-- Size Button (Resize)
+local btnUISize = Instance.new("TextButton", panel)
+btnUISize.Size = UDim2.new(0, 45, 0, 22)
+btnUISize.Position = UDim2.new(1, -78, 0, 5)
+btnUISize.BackgroundColor3 = Color3.fromRGB(80, 30, 130)
+btnUISize.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnUISize.Text = "📏 Med"
+btnUISize.Font = Enum.Font.GothamBold
+btnUISize.TextSize = 8
+Instance.new("UICorner", btnUISize).CornerRadius = UDim.new(0, 5)
+
+-- --- SIDEBAR ---
+local sidebar = Instance.new("Frame", panel)
+sidebar.Size = UDim2.new(0, 110, 1, -35)
+sidebar.Position = UDim2.new(0, 5, 0, 32)
+sidebar.BackgroundTransparency = 1
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Padding = UDim.new(0, 4)
+
+-- --- CONTAINER ---
+local container = Instance.new("Frame", panel)
+container.Size = UDim2.new(1, -125, 1, -35)
+container.Position = UDim2.new(0, 120, 0, 32)
+container.BackgroundTransparency = 1
+
+local tabFrames = {}
+for i = 1, 6 do
+	local frame = Instance.new("ScrollingFrame", container)
+	frame.Size = UDim2.new(1, 0, 1, 0)
+	frame.Position = UDim2.new(0, 0, 0, 0)
+	frame.BackgroundTransparency = 1
+	frame.Visible = (i == 1)
+	frame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	frame.ScrollBarThickness = 3
+	table.insert(tabFrames, frame)
+end
+
+local tab1Frame, tab2Frame, tab3Frame, tab4Frame, tab5Frame, tab6Frame = unpack(tabFrames)
+
+local tabButtons = {}
+local function switchTab(selectedTab)
+	for i, frame in ipairs(tabFrames) do
+		local isTarget = (i == selectedTab)
+		frame.Visible = isTarget
+		local btn = tabButtons[i]
+		TweenService:Create(btn, TweenInfo.new(0.2), {
+			BackgroundColor3 = isTarget and Color3.fromRGB(120, 80, 200) or Color3.fromRGB(30, 30, 30),
+			TextColor3 = isTarget and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)
+		}):Play()
+	end
+end
+
+local tabNames = {"🎯 Aim", "👥 Target", "🚀 TP", "⚔️ Aura", "👁️ ESP", "💀 Hitbox"}
+for i, name in ipairs(tabNames) do
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 26)
+	btn.BackgroundColor3 = (i == 1) and Color3.fromRGB(120, 80, 200) or Color3.fromRGB(30, 30, 30)
+	btn.TextColor3 = (i == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)
+	btn.Text = name
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 10
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+	
+	btn.MouseButton1Click:Connect(function()
+		switchTab(i)
+	end)
+	table.insert(tabButtons, btn)
+end
+
+-- --- TAB 1: AIM ---
+local btnMaster = Instance.new("TextButton", tab1Frame)
+btnMaster.Size = UDim2.new(1, -10, 0, 32)
+btnMaster.Position = UDim2.new(0, 5, 0, 5)
+btnMaster.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+btnMaster.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnMaster.Text = "🎯 Aimbot: OFF"
+btnMaster.Font = Enum.Font.GothamBold
+btnMaster.TextSize = 10
+Instance.new("UICorner", btnMaster).CornerRadius = UDim.new(0, 5)
+
+local aimInputBox = Instance.new("TextBox", tab1Frame)
+aimInputBox.Size = UDim2.new(1, -10, 0, 32)
+aimInputBox.Position = UDim2.new(0, 5, 0, 42)
+aimInputBox.BackgroundColor3 = Color3.fromRGB(40, 90, 160)
+aimInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimInputBox.PlaceholderText = "Aim Percent (1-100)"
+aimInputBox.Text = "15"
+aimInputBox.Font = Enum.Font.GothamBold
+aimInputBox.TextSize = 10
+Instance.new("UICorner", aimInputBox).CornerRadius = UDim.new(0, 5)
+
+btnMaster.MouseButton1Click:Connect(function()
+	systemEnabled = not systemEnabled
+	btnMaster.Text = systemEnabled and "🎯 Aimbot: ON" or "🎯 Aimbot: OFF"
+	TweenService:Create(btnMaster, TweenInfo.new(0.2), {
+		BackgroundColor3 = systemEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+aimInputBox.FocusLost:Connect(function()
+	local num = tonumber(aimInputBox.Text)
+	if num then aimPercent = math.clamp(num, 1, 100); aimInputBox.Text = tostring(aimPercent) else aimInputBox.Text = tostring(aimPercent) end
+end)
+
+-- --- TAB 2: TARGET ---
+local targetListLayout = Instance.new("UIListLayout", tab2Frame)
+targetListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+targetListLayout.Padding = UDim.new(0, 4)
+
+local function updateTargetList()
+	for _, child in ipairs(tab2Frame:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+
+	local clearBtn = Instance.new("TextButton", tab2Frame)
+	clearBtn.Size = UDim2.new(1, -10, 0, 26)
+	clearBtn.BackgroundColor3 = Color3.fromRGB(100, 30, 30)
+	clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	clearBtn.Text = "❌ Clear (Auto Target)"
+	clearBtn.Font = Enum.Font.GothamBold
+	clearBtn.TextSize = 9
+	Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 5)
+
+	clearBtn.MouseButton1Click:Connect(function()
+		lockedTargetPlayer = nil
+		updateTargetList()
+	end)
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= localPlayer then
+			local pBtn = Instance.new("TextButton", tab2Frame)
+			pBtn.Size = UDim2.new(1, -10, 0, 26)
+			pBtn.BackgroundColor3 = (lockedTargetPlayer == p) and Color3.fromRGB(0, 140, 60) or Color3.fromRGB(35, 35, 35)
+			pBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			pBtn.Text = "👤 " .. p.DisplayName .. ((lockedTargetPlayer == p) and " [ LOCKED ]" or " [ SELECT ]")
+			pBtn.Font = Enum.Font.GothamBold
+			pBtn.TextSize = 8
+			Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 5)
+
+			pBtn.MouseButton1Click:Connect(function()
+				lockedTargetPlayer = (lockedTargetPlayer == p) and nil or p
+				updateTargetList()
+			end)
+		end
+	end
+	tab2Frame.CanvasSize = UDim2.new(0, 0, 0, (#Players:GetPlayers() * 30) + 30)
+end
+
+Players.PlayerAdded:Connect(updateTargetList)
+Players.PlayerRemoving:Connect(updateTargetList)
+updateTargetList()
+
+-- --- TAB 3: TP ---
+local teleportListLayout = Instance.new("UIListLayout", tab3Frame)
+teleportListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+teleportListLayout.Padding = UDim.new(0, 4)
+
+local function updateTeleportList()
+	for _, child in ipairs(tab3Frame:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= localPlayer then
+			local tpBtn = Instance.new("TextButton", tab3Frame)
+			tpBtn.Size = UDim2.new(1, -10, 0, 26)
+			tpBtn.BackgroundColor3 = Color3.fromRGB(30, 80, 140)
+			tpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			tpBtn.Text = "🚀 TP: " .. p.DisplayName
+			tpBtn.Font = Enum.Font.GothamBold
+			tpBtn.TextSize = 9
+			Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 5)
+
+			tpBtn.MouseButton1Click:Connect(function()
+				if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+					if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+						local targetHRP = p.Character.HumanoidRootPart
+						local myHRP = localPlayer.Character.HumanoidRootPart
+						myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
+					end
+				end
+			end)
+		end
+	end
+	tab3Frame.CanvasSize = UDim2.new(0, 0, 0, (#Players:GetPlayers() * 30) + 10)
+end
+
+Players.PlayerAdded:Connect(updateTeleportList)
+Players.PlayerRemoving:Connect(updateTeleportList)
+updateTeleportList()
+
+-- --- TAB 4: AURA ---
+local btnKillAura = Instance.new("TextButton", tab4Frame)
+btnKillAura.Size = UDim2.new(1, -10, 0, 32)
+btnKillAura.Position = UDim2.new(0, 5, 0, 5)
+btnKillAura.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+btnKillAura.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnKillAura.Text = "⚔️ Kill Aura: OFF"
+btnKillAura.Font = Enum.Font.GothamBold
+btnKillAura.TextSize = 10
+Instance.new("UICorner", btnKillAura).CornerRadius = UDim.new(0, 5)
+
+local auraInputBox = Instance.new("TextBox", tab4Frame)
+auraInputBox.Size = UDim2.new(1, -10, 0, 32)
+auraInputBox.Position = UDim2.new(0, 5, 0, 42)
+auraInputBox.BackgroundColor3 = Color3.fromRGB(40, 90, 160)
+auraInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+auraInputBox.PlaceholderText = "Range (1-500)"
+auraInputBox.Text = "20"
+auraInputBox.Font = Enum.Font.GothamBold
+auraInputBox.TextSize = 10
+Instance.new("UICorner", auraInputBox).CornerRadius = UDim.new(0, 5)
+
+btnKillAura.MouseButton1Click:Connect(function()
+	killAuraEnabled = not killAuraEnabled
+	btnKillAura.Text = killAuraEnabled and "⚔️ Kill Aura: ON" or "⚔️ Kill Aura: OFF"
+	TweenService:Create(btnKillAura, TweenInfo.new(0.2), {
+		BackgroundColor3 = killAuraEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+auraInputBox.FocusLost:Connect(function()
+	local num = tonumber(auraInputBox.Text)
+	if num then killAuraRange = math.clamp(num, 1, 500); auraInputBox.Text = tostring(killAuraRange) else auraInputBox.Text = tostring(killAuraRange) end
+end)
+
+-- --- TAB 5: ESP ---
+local btnESP = Instance.new("TextButton", tab5Frame)
+btnESP.Size = UDim2.new(1, -10, 0, 36)
+btnESP.Position = UDim2.new(0, 5, 0, 5)
+btnESP.BackgroundColor3 = Color3.fromRGB(0, 160, 70)
+btnESP.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnESP.Text = "👁️ ESP & Tracer: ON"
+btnESP.Font = Enum.Font.GothamBold
+btnESP.TextSize = 10
+Instance.new("UICorner", btnESP).CornerRadius = UDim.new(0, 5)
+
+btnESP.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	btnESP.Text = espEnabled and "👁️ ESP & Tracer: ON" or "👁️ ESP & Tracer: OFF"
+	TweenService:Create(btnESP, TweenInfo.new(0.2), {
+		BackgroundColor3 = espEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+-- --- TAB 6: HITBOX EXPANDER & SPEED & JUMP ---
+local btnHitbox = Instance.new("TextButton", tab6Frame)
+btnHitbox.Size = UDim2.new(1, -10, 0, 28)
+btnHitbox.Position = UDim2.new(0, 5, 0, 5)
+btnHitbox.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+btnHitbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnHitbox.Text = "💀 Hitbox: OFF"
+btnHitbox.Font = Enum.Font.GothamBold
+btnHitbox.TextSize = 9
+Instance.new("UICorner", btnHitbox).CornerRadius = UDim.new(0, 5)
+
+local hitboxInputBox = Instance.new("TextBox", tab6Frame)
+hitboxInputBox.Size = UDim2.new(1, -10, 0, 26)
+hitboxInputBox.Position = UDim2.new(0, 5, 0, 36)
+hitboxInputBox.BackgroundColor3 = Color3.fromRGB(40, 90, 160)
+hitboxInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+hitboxInputBox.PlaceholderText = "Size (1-200)"
+hitboxInputBox.Text = "5"
+hitboxInputBox.Font = Enum.Font.GothamBold
+hitboxInputBox.TextSize = 9
+Instance.new("UICorner", hitboxInputBox).CornerRadius = UDim.new(0, 5)
+
+local btnSpeed = Instance.new("TextButton", tab6Frame)
+btnSpeed.Size = UDim2.new(1, -10, 0, 28)
+btnSpeed.Position = UDim2.new(0, 5, 0, 65)
+btnSpeed.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+btnSpeed.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnSpeed.Text = "⚡ WalkSpeed: OFF"
+btnSpeed.Font = Enum.Font.GothamBold
+btnSpeed.TextSize = 9
+Instance.new("UICorner", btnSpeed).CornerRadius = UDim.new(0, 5)
+
+local speedInputBox = Instance.new("TextBox", tab6Frame)
+speedInputBox.Size = UDim2.new(1, -10, 0, 26)
+speedInputBox.Position = UDim2.new(0, 5, 0, 96)
+speedInputBox.BackgroundColor3 = Color3.fromRGB(40, 90, 160)
+speedInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedInputBox.PlaceholderText = "Speed (e.g. 50)"
+speedInputBox.Text = "50"
+speedInputBox.Font = Enum.Font.GothamBold
+speedInputBox.TextSize = 9
+Instance.new("UICorner", speedInputBox).CornerRadius = UDim.new(0, 5)
+
+local btnInfJump = Instance.new("TextButton", tab6Frame)
+btnInfJump.Size = UDim2.new(1, -10, 0, 28)
+btnInfJump.Position = UDim2.new(0, 5, 0, 125)
+btnInfJump.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+btnInfJump.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnInfJump.Text = "🦘 Inf-Jump: OFF"
+btnInfJump.Font = Enum.Font.GothamBold
+btnInfJump.TextSize = 9
+Instance.new("UICorner", btnInfJump).CornerRadius = UDim.new(0, 5)
+
+tab6Frame.CanvasSize = UDim2.new(0, 0, 0, 160)
+
+btnHitbox.MouseButton1Click:Connect(function()
+	hitboxEnabled = not hitboxEnabled
+	btnHitbox.Text = hitboxEnabled and "💀 Hitbox: ON" or "💀 Hitbox: OFF"
+	TweenService:Create(btnHitbox, TweenInfo.new(0.2), {
+		BackgroundColor3 = hitboxEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+hitboxInputBox.FocusLost:Connect(function()
+	local num = tonumber(hitboxInputBox.Text)
+	if num then hitboxSize = math.clamp(num, 1, 200); hitboxInputBox.Text = tostring(hitboxSize) else hitboxInputBox.Text = tostring(hitboxSize) end
+end)
+
+btnSpeed.MouseButton1Click:Connect(function()
+	speedEnabled = not speedEnabled
+	btnSpeed.Text = speedEnabled and "⚡ WalkSpeed: ON" or "⚡ WalkSpeed: OFF"
+	TweenService:Create(btnSpeed, TweenInfo.new(0.2), {
+		BackgroundColor3 = speedEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+speedInputBox.FocusLost:Connect(function()
+	local num = tonumber(speedInputBox.Text)
+	if num then walkSpeedValue = math.clamp(num, 16, 500) else speedInputBox.Text = tostring(walkSpeedValue) end
+end)
+
+btnInfJump.MouseButton1Click:Connect(function()
+	infJumpEnabled = not infJumpEnabled
+	btnInfJump.Text = infJumpEnabled and "🦘 Inf-Jump: ON" or "🦘 Inf-Jump: OFF"
+	TweenService:Create(btnInfJump, TweenInfo.new(0.2), {
+		BackgroundColor3 = infJumpEnabled and Color3.fromRGB(0, 160, 70) or Color3.fromRGB(180, 40, 40)
+	}):Play()
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	if infJumpEnabled then
+		local char = localPlayer.Character
+		if char and char:FindFirstChild("Humanoid") then
+			char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+
+-- Resize UI Panel Logic
+btnUISize.MouseButton1Click:Connect(function()
+	local targetSize, textLabel
+	if currentUISize == "Small" then
+		currentUISize = "Medium"
+		textLabel = "📏 Med"
+		targetSize = UDim2.new(0, 340, 0, 220)
+	elseif currentUISize == "Medium" then
+		currentUISize = "Large"
+		textLabel = "📐 Large"
+		targetSize = UDim2.new(0, 380, 0, 250)
+	else
+		currentUISize = "Small"
+		textLabel = "🔹 Small"
+		targetSize = UDim2.new(0, 300, 0, 190)
+	end
+	btnUISize.Text = textLabel
+	TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+end)
+
+-- --- Draggable System ---
+local function makeDraggable(guiObject)
+	local dragging, dragStart, startPos
+	guiObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+makeDraggable(mainBtn)
+makeDraggable(panel)
+
+-- Menu Toggle
+mainBtn.MouseButton1Click:Connect(function()
+	panel.Visible = not panel.Visible
+end)
+
+-- --- Target Getter (สำหรับ Aimbot) ---
+local function getTarget()
+	if lockedTargetPlayer and lockedTargetPlayer.Parent then
+		local char = lockedTargetPlayer.Character
+		if char and char:FindFirstChild("Head") then
+			local hum = char:FindFirstChild("Humanoid")
+			if hum and hum.Health > 0 then return lockedTargetPlayer end
+		end
+	end
+
+	local target, shortest = nil, math.huge
+	if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return nil end
+	local myPos = localPlayer.Character.HumanoidRootPart.Position
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= localPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			if localPlayer.Team and p.Team and localPlayer.Team == p.Team then continue end
+			local hum = p.Character:FindFirstChild("Humanoid")
+			if hum and hum.Health > 0 then
+				local dist = (p.Character.HumanoidRootPart.Position - myPos).Magnitude
+				if dist < shortest then shortest = dist; target = p end
+			end
+		end
+	end
+	return target
+end
+
+-- --- Main Loop (RenderStepped) ---
+RunService.RenderStepped:Connect(function()
+	-- 1. ESP
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= localPlayer and p.Character then
+			local char = p.Character
+			local hum = char:FindFirstChild("Humanoid")
+			local head = char:FindFirstChild("Head")
+			local isTeamMate = (localPlayer.Team and p.Team and localPlayer.Team == p.Team)
+
+			local hl = char:FindFirstChild("YufewHighlight")
+			if espEnabled and hum and hum.Health > 0 and not isTeamMate then
+				if not hl then
+					hl = Instance.new("Highlight")
+					hl.Name = "YufewHighlight"
+					hl.Adornee = char
+					hl.FillColor = Color3.fromRGB(200, 30, 30)
+					hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+					hl.FillTransparency = 0.5
+					hl.OutlineTransparency = 0.5
+					hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					hl.Parent = char
+				end
+			else
+				if hl then hl:Destroy() end
+			end
+
+			local tag = head and head:FindFirstChild("YufewTag")
+			if espEnabled and head and hum and hum.Health > 0 and not isTeamMate then
+				if not tag then
+					tag = Instance.new("BillboardGui")
+					tag.Name = "YufewTag"
+					tag.Size = UDim2.new(0, 100, 0, 30)
+					tag.StudsOffset = Vector3.new(0, 2.5, 0)
+					tag.AlwaysOnTop = true
+					local lbl = Instance.new("TextLabel", tag)
+					lbl.Name = "Label"
+					lbl.Size = UDim2.new(1, 0, 1, 0)
+					lbl.BackgroundTransparency = 1
+					lbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+					lbl.TextStrokeTransparency = 0
+					lbl.Font = Enum.Font.GothamBold
+					lbl.TextSize = 12
+					tag.Parent = head
+				end
+				local lbl = tag:FindFirstChild("Label")
+				if lbl then lbl.Text = "🎯 " .. p.DisplayName end
+			else
+				if tag then tag:Destroy() end
+			end
+
+			local tracer = char:FindFirstChild("YufewHubTracer")
+			if espEnabled and head and hum and hum.Health > 0 and not isTeamMate then
+				if not tracer then
+					tracer = Instance.new("SelectionBox")
+					tracer.Name = "YufewHubTracer"
+					tracer.Color3 = Color3.fromRGB(255, 215, 0)
+					tracer.LineThickness = 0.05
+					tracer.SurfaceTransparency = 1
+					tracer.Adornee = head
+					tracer.Parent = char
+				end
+			else
+				if tracer then tracer:Destroy() end
+			end
+		end
+	end
+
+	-- 2. Hitbox Expander (สีฟ้าพาสเทลสบายตา)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= localPlayer and p.Character then
+			local char = p.Character
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			local hum = char:FindFirstChild("Humanoid")
+			local isTeamMate = (localPlayer.Team and p.Team and localPlayer.Team == p.Team)
+
+			if hrp and hum and hum.Health > 0 and not isTeamMate then
+				if hitboxEnabled then
+					hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+					hrp.Color = Color3.fromRGB(100, 200, 255)
+					hrp.Material = Enum.Material.Neon
+					hrp.Transparency = 0.7
+					hrp.CanCollide = false
+				else
+					hrp.Size = Vector3.new(2, 2, 1)
+					hrp.Transparency = 1
+					hrp.CanCollide = true
+				end
+			end
+		end
+	end
+
+	-- 3. Aimbot
+	if systemEnabled then
+		local target = getTarget()
+		if target and target.Character and target.Character:FindFirstChild("Head") then
+			local head = target.Character.Head
+			local targetCF = CFrame.new(camera.CFrame.Position, head.Position)
+			local lerpAlpha = math.clamp(aimPercent / 100, 0.01, 1)
+			camera.CFrame = camera.CFrame:Lerp(targetCF, lerpAlpha)
+		end
+	end
+
+	-- 4. Kill Aura
+	if killAuraEnabled then
+		local currentTime = tick()
+		if currentTime - lastAttackTime >= attackCooldown then
+			if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				local myHRP = localPlayer.Character.HumanoidRootPart
+				local weapon = localPlayer.Character:FindFirstChildOfClass("Tool")
+				if not weapon and localPlayer:FindFirstChild("Backpack") then
+					weapon = localPlayer.Backpack:FindFirstChildOfClass("Tool")
+					if weapon then
+						local hum = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+						if hum then hum:EquipTool(weapon) end
+					end
+				end
+
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p ~= localPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+						if localPlayer.Team and p.Team and localPlayer.Team == p.Team then continue end
+						local enemyHRP = p.Character.HumanoidRootPart
+						local enemyHum = p.Character:FindFirstChild("Humanoid")
+						if enemyHum and enemyHum.Health > 0 then
+							local dist = (enemyHRP.Position - myHRP.Position).Magnitude
+							if dist <= killAuraRange then
+								lastAttackTime = currentTime
+								if weapon and weapon:IsA("Tool") then
+									weapon:Activate()
+									pcall(function()
+										if weapon:FindFirstChild("RemoteEvent") then weapon.RemoteEvent:FireServer()
+										elseif weapon:FindFirstChild("RemoteFunction") then weapon.RemoteFunction:InvokeServer() end
+									end)
+								end
+								break
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	-- 5. Movement (WalkSpeed)
+	if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
+		local hum = localPlayer.Character.Humanoid
+		if speedEnabled then
+			hum.WalkSpeed = walkSpeedValue
+		else
+			hum.WalkSpeed = 16
+		end
+	end
+end)
